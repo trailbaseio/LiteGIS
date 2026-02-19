@@ -1,6 +1,6 @@
 [package]
 name = "litegis"
-version = "0.0.3"
+version = "0.0.4"
 description = "A geospatial extension for SQLite"
 homepage = "https://trailbase.io"
 repository = "https://github.com/trailbaseio/LiteGIS"
@@ -10,6 +10,10 @@ edition = "2024"
 
 [lib]
 crate-type=["rlib"]
+
+[features]
+default = []
+static = ["geos/static"]
 
 [dependencies]
 geos = { version = "11.0.0", default-features = false, features = ["geo", "json"] }
