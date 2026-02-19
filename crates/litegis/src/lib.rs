@@ -49,7 +49,7 @@ fn geom_from_wkt(
 ) -> Result<Vec<u8>, ErrWrapper> {
   let mut geometry = Geometry::new_from_wkt(text)?;
   if let Some(expected) = expected
-    && geometry.geometry_type() != expected
+    && geometry.geometry_type()? != expected
   {
     return Err(ErrWrapper(Error::UserFunctionError(
       format!("expected: {expected:?}").into(),
@@ -58,10 +58,10 @@ fn geom_from_wkt(
 
   let mut writer = WKBWriter::new()?;
   if let Some(srid) = srid {
-    geometry.set_srid(srid as usize);
+    geometry.set_srid(srid as i32);
     writer.set_include_SRID(true);
   }
-  return Ok(writer.write_wkb(&geometry)?.into());
+  return Ok(writer.write_wkb(&geometry)?);
 }
 
 fn point_from_text_1(ctx: &Context) -> Result<Vec<u8>, Error> {
@@ -124,12 +124,7 @@ fn parse_from_geojson(text: &str) -> Result<Value, ErrWrapper> {
     geos::geojson::Geometry::from_str(text).map_err(|err| ErrWrapper(Error::UserFunctionError(err.into())))?;
   let geometry: Geometry = json.try_into()?;
 
-  let mut writer = WKBWriter::new()?;
-  if geometry.get_srid().ok().is_some() {
-    writer.set_include_SRID(true);
-  }
-
-  return Ok(Value::Blob(writer.write_wkb(&geometry)?.into()));
+  return Ok(Value::Blob(WKBWriter::new()?.write_wkb(&geometry)?));
 }
 
 #[inline]
@@ -144,16 +139,16 @@ fn get_f64(ctx: &Context, i: usize) -> Result<f64, FromSqlError> {
 fn make_point_2(ctx: &Context) -> Result<Vec<u8>, Error> {
   let point = make_point(get_f64(ctx, 0)?, get_f64(ctx, 1)?)?;
   let mut writer = WKBWriter::new().map_err(err_mapper)?;
-  return Ok(writer.write_wkb(&point).map_err(err_mapper)?.into());
+  return writer.write_wkb(&point).map_err(err_mapper);
 }
 
 fn make_point_srid_3(ctx: &Context) -> Result<Vec<u8>, Error> {
   let mut point = make_point(get_f64(ctx, 0)?, get_f64(ctx, 1)?)?;
-  point.set_srid(ctx.get_raw(4).as_i64()? as usize);
+  point.set_srid(ctx.get_raw(4).as_i64()? as i32);
 
   let mut writer = WKBWriter::new().map_err(err_mapper)?;
   writer.set_include_SRID(true);
-  return Ok(writer.write_wkb(&point).map_err(err_mapper)?.into());
+  return writer.write_wkb(&point).map_err(err_mapper);
 }
 
 fn make_point(x: f64, y: f64) -> Result<Geometry, ErrWrapper> {
@@ -187,10 +182,10 @@ fn make_envelope(xmin: f64, ymin: f64, xmax: f64, ymax: f64, srid: Option<i64>) 
 
   let mut writer = WKBWriter::new()?;
   if let Some(srid) = srid {
-    envelope.set_srid(srid as usize);
+    envelope.set_srid(srid as i32);
     writer.set_include_SRID(true);
   }
-  return Ok(writer.write_wkb(&envelope)?.into());
+  return Ok(writer.write_wkb(&envelope)?);
 }
 
 fn get_type(ctx: &Context) -> Result<Value, Error> {
@@ -207,13 +202,13 @@ fn get_dimension(ctx: &Context) -> Result<Value, Error> {
   };
   let geometry = Geometry::new_from_wkb(blob).map_err(err_mapper)?;
   return Ok(Value::Integer(
-    geometry.get_num_dimensions().map_err(err_mapper)? as i64
+    geometry.get_coordinate_dimension().map_err(err_mapper)? as i64,
   ));
 }
 
 fn is_valid(ctx: &Context) -> Result<bool, Error> {
   return match ctx.get_raw(0).as_blob_or_null() {
-    Ok(Some(blob)) => Ok(Geometry::new_from_wkb(blob).is_ok_and(|g| g.is_valid())),
+    Ok(Some(blob)) => Ok(Geometry::new_from_wkb(blob).is_ok_and(|g| g.is_valid().unwrap_or(false))),
     // Consider NULL a valid geometry.
     Ok(None) => Ok(true),
     Err(_) => Ok(false),
@@ -233,11 +228,11 @@ fn get_srid(ctx: &Context) -> Result<Value, Error> {
 
 fn set_srid(ctx: &Context) -> Result<Vec<u8>, Error> {
   let mut geometry = Geometry::new_from_wkb(ctx.get_raw(0).as_blob()?).map_err(err_mapper)?;
-  geometry.set_srid(ctx.get_raw(1).as_i64()? as usize);
+  geometry.set_srid(ctx.get_raw(1).as_i64()? as i32);
 
   let mut writer = WKBWriter::new().map_err(err_mapper)?;
   writer.set_include_SRID(true);
-  return Ok(writer.write_wkb(&geometry).map_err(err_mapper)?.into());
+  return writer.write_wkb(&geometry).map_err(err_mapper);
 }
 
 #[macro_export]
@@ -425,7 +420,7 @@ mod tests {
 
     let rows = srid_stmt.query([]).unwrap();
     assert_eq!(
-      vec![Some(4326), Some(4326), None, None],
+      vec![Some(4326), Some(4326), Some(0), None],
       rows
         .map(|row| row.get::<_, Option<i64>>(0))
         .unwrap()
