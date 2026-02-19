@@ -225,7 +225,10 @@ fn get_srid(ctx: &Context) -> Result<Value, Error> {
     return Ok(Value::Null);
   };
   let geometry = Geometry::new_from_wkb(blob).map_err(err_mapper)?;
-  return Ok(Value::Integer(geometry.get_srid().map_err(err_mapper)? as i64));
+  return match geometry.get_srid() {
+    Ok(r) => Ok(Value::Integer(r as i64)),
+    _ => Ok(Value::Null),
+  };
 }
 
 fn set_srid(ctx: &Context) -> Result<Vec<u8>, Error> {
@@ -240,10 +243,20 @@ fn set_srid(ctx: &Context) -> Result<Vec<u8>, Error> {
 #[macro_export]
 macro_rules! relation {
   ($name:ident) => {
-    fn $name(ctx: &Context) -> Result<bool, Error> {
-      let a = Geometry::new_from_wkb(ctx.get_raw(0).as_blob()?).map_err(err_mapper)?;
-      let b = Geometry::new_from_wkb(ctx.get_raw(1).as_blob()?).map_err(err_mapper)?;
-      return a.$name(&b).map_err(err_mapper);
+    fn $name(ctx: &Context) -> Result<Value, Error> {
+      let (Some(a), Some(b)) = (
+        ctx.get_raw(0).as_blob_or_null()?,
+        ctx.get_raw(1).as_blob_or_null()?,
+      ) else {
+        return Ok(Value::Null);
+      };
+
+      let result = Geometry::new_from_wkb(a)
+        .map_err(err_mapper)?
+        .$name(&Geometry::new_from_wkb(b).map_err(err_mapper)?)
+        .map_err(err_mapper)?;
+
+      return Ok(Value::Integer(result as i64));
     }
   };
 }
@@ -316,13 +329,17 @@ pub fn register(conn: &Connection) -> Result<(), Error> {
   conn.create_scalar_function("LiteGIS_GEOS_Version", 0, default_flags, |_ctx| {
     return geos::version().map_err(err_mapper);
   })?;
-  conn.create_scalar_function("LiteGIS_Version", 0, default_flags, |_ctx| Ok("TBD"))?;
+  conn.create_scalar_function("LiteGIS_Version", 0, default_flags, |_ctx| {
+    let version_info = rustc_tools_util::get_version_info!();
+    return Ok(version_info.to_string());
+  })?;
 
   return Ok(());
 }
 
 #[cfg(test)]
 mod tests {
+  use rusqlite::fallible_iterator::FallibleIterator;
   use std::fmt::Display;
 
   use super::*;
@@ -393,20 +410,26 @@ mod tests {
 
          CREATE INDEX _points_geom ON points(geom);
 
-         INSERT INTO points (desc, geom) VALUES
-           ('colosseo',     ST_GeomFromText('POINT({COLOSSEO})', 4326)),
-           ('line',         ST_GeomFromText('LINESTRING(10 41, 20 41)', 4326)),
-           ('br-quadrant',  ST_MakeEnvelope(0, -0, 180, -90)),
+         INSERT INTO points (id, desc, geom) VALUES
+           (0, 'colosseo',       ST_GeomFromText('POINT({COLOSSEO})', 4326)),
+           (1, 'line',           ST_GeomFromText('LINESTRING(10 41, 20 41)', 4326)),
+           (2, 'br-quadrant',    ST_MakeEnvelope(0, -0, 180, -90)),
+           (3, 'null',           NULL)
          ;"
       ))
       .unwrap();
 
+    let mut srid_stmt = conn
+      .prepare("SELECT ST_SRID(geom) FROM points ORDER BY id LIMIT 4;")
+      .unwrap();
+
+    let rows = srid_stmt.query([]).unwrap();
     assert_eq!(
-      4326,
-      conn
-        .query_one("SELECT ST_SRID(geom) FROM points LIMIT 1;", (), |row| row
-          .get::<_, i64>(0),)
+      vec![Some(4326), Some(4326), None, None],
+      rows
+        .map(|row| row.get::<_, Option<i64>>(0))
         .unwrap()
+        .collect::<Vec<_>>()
     );
 
     // Check `within` bounding box.
@@ -456,5 +479,20 @@ mod tests {
           .unwrap()
       );
     }
+  }
+
+  #[test]
+  fn test_versions_accessors() {
+    let conn = setup_connection();
+
+    let geos: String = conn
+      .query_one("SELECT LiteGIS_GEOS_Version()", (), |row| row.get(0))
+      .unwrap();
+    assert!(geos.starts_with("3"));
+
+    let litegis: String = conn
+      .query_one("SELECT LiteGIS_Version()", (), |row| row.get(0))
+      .unwrap();
+    assert!(litegis.starts_with("litegis"))
   }
 }

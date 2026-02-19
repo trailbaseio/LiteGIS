@@ -314,10 +314,11 @@ dependencies = [
 
 [[package]]
 name = "litegis"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "geos",
  "rusqlite",
+ "rustc_tools_util",
 ]
 
 [[package]]
@@ -554,6 +555,12 @@ dependencies = [
  "smallvec",
  "sqlite-wasm-rs",
 ]
+
+[[package]]
+name = "rustc_tools_util"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3b75158011a63889ba12084cf1224baad7bcad50f6ee7c842f772b74aa148ed"
 
 [[package]]
 name = "rustc_version"
