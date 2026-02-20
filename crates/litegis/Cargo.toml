@@ -1,6 +1,6 @@
 [package]
 name = "litegis"
-version = "0.0.4"
+version = "0.0.5"
 description = "A geospatial extension for SQLite"
 homepage = "https://trailbase.io"
 repository = "https://github.com/trailbaseio/LiteGIS"
