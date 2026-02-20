@@ -9,5 +9,5 @@ name = "litegis"
 crate-type=["cdylib"]
 
 [dependencies]
-rusqlite = { version = "0.38.0", features = ["functions", "loadable_extension"] }
+rusqlite = { workspace = true, features = ["functions", "loadable_extension"] }
 litegis = { workspace = true }

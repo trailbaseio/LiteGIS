@@ -1,0 +1,17 @@
+FROM alpine:3.22
+
+# ARGs need to be after FROM.
+ARG RUST_TARGET
+ARG RUST_TOOLCHAIN_VERSION
+ARG WORKSPACE
+
+# We're limited to alpine:3.22 because we need an old CMake:
+#   https://github.com/georust/geos/issues/194
+RUN apk add --no-cache build-base lld pkgconf rustup cmake=3.31.7-r1
+
+# Install Rust toolchain.
+RUN rustup-init --target ${RUST_TARGET} --default-toolchain ${RUST_TOOLCHAIN_VERSION} --profile minimal -y
+  
+WORKDIR ${WORKSPACE}
+
+# vim: ft=dockerfile

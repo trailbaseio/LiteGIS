@@ -11,14 +11,21 @@ edition = "2024"
 [lib]
 crate-type=["rlib"]
 
+[[example]]
+name = "static_geos"
+required-features = ["static"]
+
 [features]
 default = []
 static = ["geos/static"]
 
 [dependencies]
 geos = { version = "11.0.0", default-features = false, features = ["geo", "json"] }
-rusqlite = { version = "0.38.0", features = ["functions"] }
+rusqlite = { workspace = true, features = ["functions"] }
 rustc_tools_util = "^0.4.2"
+
+[dev-dependencies]
+rusqlite = { workspace = true, features = ["functions", "bundled"] }
 
 [build-dependencies]
 rustc_tools_util = "^0.4.2"

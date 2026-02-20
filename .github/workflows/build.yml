@@ -1,0 +1,135 @@
+name: Static Builds
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+
+env:
+  TOOLCHAIN_VERSION: 1.93.1
+
+jobs:
+  build-x86_64-linux-gnu:
+    runs-on: ubuntu-latest
+    env:
+      RUST_TARGET: x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y --fix-missing cmake pkg-config clang
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN_VERSION }}
+          target: ${{ env.RUST_TARGET }}
+      - name: Rust Build
+        run: |
+          cargo build --target ${{ env.RUST_TARGET }} --release --features=static --example static_geos
+
+  # NOTE: We use Docker + Alpine. Otherwise getting compatible versions for
+  # musl-gcc, g++ (GEOS is C++) and rustc is borderline impossible.
+  build-aarch64-linux-musl:
+    runs-on: ubuntu-24.04-arm
+    env:
+      RUST_TARGET: aarch64-unknown-linux-musl
+      DOCKER_WORKSPACE: /workspace
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build a Builder Image
+        run: |
+          docker build -f Dockerfile.ci \
+            --build-arg RUST_TARGET=${{ env.RUST_TARGET }} \
+            --build-arg RUST_TOOLCHAIN_VERSION=${{ env.TOOLCHAIN_VERSION }} \
+            --build-arg WORKSPACE=${{ env.DOCKER_WORKSPACE }} \
+            -t builder:latest .
+
+      - name: Rust Build using the Builder
+        run: |
+          docker run --rm -v ${{ github.workspace }}:${{ env.DOCKER_WORKSPACE }} builder:latest \
+            /root/.cargo/bin/cargo build --target ${{ env.RUST_TARGET }} --release --features=static --example static_geos
+
+      - name: Verify the Binary
+        run: ./target/${{ env.RUST_TARGET }}/release/examples/static_geos
+
+  build-x86_64-linux-musl:
+    runs-on: ubuntu-latest
+    env:
+      RUST_TARGET: x86_64-unknown-linux-musl
+      DOCKER_WORKSPACE: /workspace
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build a Builder Image
+        run: |
+          docker build -f Dockerfile.ci \
+            --build-arg RUST_TARGET=${{ env.RUST_TARGET }} \
+            --build-arg RUST_TOOLCHAIN_VERSION=${{ env.TOOLCHAIN_VERSION }} \
+            --build-arg WORKSPACE=${{ env.DOCKER_WORKSPACE }} \
+            -t builder:latest .
+
+      - name: Rust Build using the Builder
+        run: |
+          docker run --rm -v ${{ github.workspace }}:${{ env.DOCKER_WORKSPACE }} builder:latest \
+            /root/.cargo/bin/cargo build --target ${{ env.RUST_TARGET }} --release --features=static --example static_geos
+
+      - name: Verify the Binary
+        run: ./target/${{ env.RUST_TARGET }}/release/examples/static_geos
+
+  build-aarch64-apple-darwin:
+    runs-on: macos-15
+    env:
+      RUST_TARGET: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v3
+      # - name: Install Dependencies
+      #   run: |
+      #       brew update && brew install geos
+      # CMake v4 is too new: https://github.com/georust/geos/issues/194
+      - name: Downgrade CMake
+        run: pipx install --force cmake==3.31
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN_VERSION }}
+          target: ${{ env.RUST_TARGET }}
+      - name: Rust Build
+        run: |
+          cargo build --target ${{ env.RUST_TARGET }} --release --features=static --example static_geos
+
+  build-x86_64-apple-darwin:
+    runs-on: macos-15-intel
+    env:
+      RUST_TARGET: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v3
+      - name: Downgrade CMake
+        run: pipx install --force cmake==3.31
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN_VERSION }}
+          target: ${{ env.RUST_TARGET }}
+      - name: Rust Build
+        run: |
+          cargo build --target ${{ env.RUST_TARGET }} --release --features=static --example static_geos
+
+  build-x86_64-windows:
+    runs-on: windows-latest
+    env:
+      RUST_TARGET: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v3
+      # - uses: MinoruSekine/setup-scoop@v4.0.1
+      #   with:
+      #     buckets: extras
+      #     # We use this as a proxy: we need sqlite libs and not binary :/
+      #     apps: sqlite
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.TOOLCHAIN_VERSION }}
+          target: ${{ env.RUST_TARGET }}
+      - name: Rust Build
+        shell: bash
+        run: |
+          cargo build --target ${{ env.RUST_TARGET }} --release --features=static --example static_geos

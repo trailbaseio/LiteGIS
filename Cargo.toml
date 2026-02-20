@@ -10,3 +10,4 @@ default-members = [
 
 [workspace.dependencies]
 litegis = { path = "crates/litegis" }
+rusqlite = { version = "0.38.0" }
