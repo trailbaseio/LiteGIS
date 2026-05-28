@@ -8,7 +8,7 @@ on:
       - dev
 
 env:
-  TOOLCHAIN_VERSION: 1.93.1
+  TOOLCHAIN_VERSION: 1.95.0
 
 jobs:
   build-x86_64-linux-gnu:
