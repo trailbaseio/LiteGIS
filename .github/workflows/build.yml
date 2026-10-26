@@ -7,8 +7,11 @@ on:
       - main
       - dev
 
+  # Manual UI trigger.
+  workflow_dispatch:
+
 env:
-  TOOLCHAIN_VERSION: 1.95.0
+  TOOLCHAIN_VERSION: 1.98.1
 
 jobs:
   build-x86_64-linux-gnu:
@@ -16,7 +19,7 @@ jobs:
     env:
       RUST_TARGET: x86_64-unknown-linux-gnu
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - name: Install Dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y --fix-missing cmake pkg-config clang
@@ -37,7 +40,7 @@ jobs:
       DOCKER_WORKSPACE: /workspace
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build a Builder Image
         run: |
           docker build -f Dockerfile.ci \
@@ -61,7 +64,7 @@ jobs:
       DOCKER_WORKSPACE: /workspace
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build a Builder Image
         run: |
           docker build -f Dockerfile.ci \
@@ -83,13 +86,7 @@ jobs:
     env:
       RUST_TARGET: aarch64-apple-darwin
     steps:
-      - uses: actions/checkout@v3
-      # - name: Install Dependencies
-      #   run: |
-      #       brew update && brew install geos
-      # CMake v4 is too new: https://github.com/georust/geos/issues/194
-      - name: Downgrade CMake
-        run: pipx install --force cmake==3.31
+      - uses: actions/checkout@v7
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.TOOLCHAIN_VERSION }}
@@ -103,9 +100,7 @@ jobs:
     env:
       RUST_TARGET: x86_64-apple-darwin
     steps:
-      - uses: actions/checkout@v3
-      - name: Downgrade CMake
-        run: pipx install --force cmake==3.31
+      - uses: actions/checkout@v7
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.TOOLCHAIN_VERSION }}
@@ -119,7 +114,7 @@ jobs:
     env:
       RUST_TARGET: x86_64-pc-windows-msvc
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       # - uses: MinoruSekine/setup-scoop@v4.0.1
       #   with:
       #     buckets: extras
